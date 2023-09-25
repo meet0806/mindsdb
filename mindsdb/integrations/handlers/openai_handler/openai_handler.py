@@ -37,7 +37,7 @@ class OpenAIHandler(BaseMLEngine):
         self.max_batch_size = 20
         self.default_max_tokens = 100
         self.chat_completion_models = CHAT_MODELS
-        self.supported_ft_models = ('davinci', 'curie', 'babbage', 'ada')  # base models compatible with finetuning
+        self.supported_ft_models = ('babbage-002','davinci-002','gpt-3.5-turbo-instruct') # base models compatible with finetuning
 
     @staticmethod
     def create_validation(target, args=None, **kwargs):
@@ -508,7 +508,7 @@ class OpenAIHandler(BaseMLEngine):
           - Modify model metadata so that the new version triggers the fine-tuned version of the model (stored in the user's OpenAI account)
 
         Caveats: 
-          - As base fine-tuning models, OpenAI only supports the original GPT ones: `ada`, `babbage`, `curie`, `davinci`. This means if you fine-tune successively more than once, any fine-tuning other than the most recent one is lost.
+          - As base fine-tuning models, OpenAI only supports the original GPT ones: `babbage-002`, `davinci-002`, `gpt-3.5-turbo-instruct`. This means if you fine-tune successively more than once, any fine-tuning other than the most recent one is lost.
         """  # noqa
 
         args = args if args else {}
@@ -561,10 +561,10 @@ class OpenAIHandler(BaseMLEngine):
         val_file_id = jsons['val'].id if isinstance(jsons['val'], openai.File) else None
 
         def _get_model_type(model_name: str):
-            for model_type in ['ada', 'curie', 'babbage', 'davinci']:
+            for model_type in ['babbage-002','davinci-002','gpt-3.5-turbo-instruct']:
                 if model_type in model_name.lower():
                     return model_type
-            return 'ada'
+            return 'babbage-002'
 
         # `None` values are internally imputed by OpenAI to `null` or default values
         ft_params = {
