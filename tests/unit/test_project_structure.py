@@ -63,7 +63,7 @@ class TestProjectStructure(BaseExecutorDummyML):
         ret = self.run_sql(
             '''
                 CREATE model proj.task_model
-                from dummy_data (select * from tasks)
+                from proj (select * from dummy_data.tasks)
                 PREDICT a
                 using engine='dummy_ml',
                 tag = 'first',
@@ -1115,6 +1115,34 @@ class TestJobs(BaseExecutorDummyML):
         # check 1 model
         ret = self.run_sql('select * from models where name="pred"')
         assert len(ret) == 1
+
+    def test_model_column_maping(self):
+        df = pd.DataFrame([
+            {'a': 10, 'c': 30},
+            {'a': 20, 'c': 40},
+        ])
+        self.set_data('tbl', df)
+
+        self.run_sql(
+            '''
+                CREATE model mindsdb.pred
+                PREDICT p
+                using engine='dummy_ml',
+                join_learn_process=true
+            '''
+        )
+        ret = self.run_sql('''
+            select * from dummy_data.tbl t
+            join pred m on m.input = t.a
+        ''')
+        assert ret['output'][0] == 10
+
+        # without aliases
+        ret = self.run_sql('''
+            select * from dummy_data.tbl
+            join pred on pred.input = tbl.c
+        ''')
+        assert ret['output'][0] == 30
 
     def test_schema(self, scheduler):
 
