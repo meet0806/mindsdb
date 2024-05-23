@@ -38,6 +38,7 @@ mindsdb/integrations/handlers/autokeras_handler/structured_data_classifier
 .vscode
 .vscode/*
 .history
+.replit
 doc/lib/
 run.csh
 
