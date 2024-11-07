@@ -45,10 +45,10 @@ class QueryContextController:
 
         query_str = l_query.to_string()
 
-        rec = self.__get_context_record(context_name, query_str)
+        rec = self._get_context_record(context_name, query_str)
 
         if rec is None or len(rec.values) == 0:
-            values = self.__get_init_last_values(l_query, dn, session)
+            values = self._get_init_last_values(l_query, dn, session)
             if rec is None:
                 self.__add_context_record(context_name, query_str, values)
                 if context_name.startswith('job-if-'):
@@ -63,8 +63,8 @@ class QueryContextController:
 
         query_out = l_query.apply_values(values)
 
-        def callback(data, columns_info):
-            self._result_callback(l_query, context_name, query_str, data, columns_info)
+        def callback(df, columns_info):
+            self._result_callback(l_query, context_name, query_str, df, columns_info)
 
         return query_out, callback
 
@@ -83,7 +83,7 @@ class QueryContextController:
 
     def _result_callback(self, l_query: LastQuery,
                          context_name: str, query_str: str,
-                         data: List[dict], columns_info: list):
+                         df: pd.DataFrame, columns_info: list):
         """
         This function handlers result from executed query and updates context variables with new values
 
@@ -97,10 +97,9 @@ class QueryContextController:
           - columns_info: list
 
         """
-        if len(data) == 0:
+        if len(df) == 0:
             return
 
-        df = pd.DataFrame(data, columns=[col['name'] for col in columns_info])
         values = {}
         # get max values
         for info in l_query.get_last_columns():
@@ -148,7 +147,7 @@ class QueryContextController:
             db.session.delete(rec)
         db.session.commit()
 
-    def __get_init_last_values(self, l_query: LastQuery, dn, session) -> dict:
+    def _get_init_last_values(self, l_query: LastQuery, dn, session) -> dict:
         """
         Gets current last values for query.
         Creates and executes query for it:
@@ -165,7 +164,7 @@ class QueryContextController:
             if len(data) == 0:
                 value = None
             else:
-                row = data[0]
+                row = list(data.iloc[0])
 
                 idx = None
                 for i, col in enumerate(columns_info):
@@ -255,7 +254,7 @@ class QueryContextController:
         return vars
 
     # DB
-    def __get_context_record(self, context_name: str, query_str: str) -> db.QueryContext:
+    def _get_context_record(self, context_name: str, query_str: str) -> db.QueryContext:
         """
         Find and return record for context and query string
         """
@@ -282,7 +281,7 @@ class QueryContextController:
         """
         Updates context record with new values
         """
-        rec = self.__get_context_record(context_name, query_str)
+        rec = self._get_context_record(context_name, query_str)
         rec.values = values
         db.session.commit()
 

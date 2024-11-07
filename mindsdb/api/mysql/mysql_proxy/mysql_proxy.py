@@ -75,6 +75,7 @@ from mindsdb.api.mysql.mysql_proxy.utilities import (
 )
 from mindsdb.api.executor import exceptions as exec_exc
 
+from mindsdb.api.common.check_auth import check_auth
 from mindsdb.api.mysql.mysql_proxy.utilities.lightwood_dtype import dtype
 from mindsdb.utilities import log
 from mindsdb.utilities.config import Config
@@ -86,37 +87,6 @@ logger = log.getLogger(__name__)
 
 def empty_fn():
     pass
-
-
-def check_auth(username, password, scramble_func, salt, company_id, config):
-    """ """
-    try:
-        hardcoded_user = config["auth"].get("username")
-        hardcoded_password = config["auth"].get("password")
-        if hardcoded_password is None:
-            hardcoded_password = ""
-        hardcoded_password_hash = scramble_func(hardcoded_password, salt)
-        hardcoded_password = hardcoded_password.encode()
-
-        if password is None:
-            password = ""
-        if isinstance(password, str):
-            password = password.encode()
-
-        if username != hardcoded_user:
-            logger.warning(f"Check auth, user={username}: user mismatch")
-            return {"success": False}
-
-        if password != hardcoded_password and password != hardcoded_password_hash:
-            logger.warning(f"check auth, user={username}: password mismatch")
-            return {"success": False}
-
-        logger.info(f"Check auth, user={username}: Ok")
-        return {"success": True, "username": username}
-    except Exception as e:
-        logger.error(f"Check auth, user={username}: ERROR")
-        logger.error(e)
-        logger.error(traceback.format_exc())
 
 
 class SQLAnswer:
@@ -880,6 +850,8 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
             cert_path = tempfile.mkstemp(prefix="mindsdb_cert_", text=True)[1]
             make_ssl_cert(cert_path)
             atexit.register(lambda: os.remove(cert_path))
+        elif not os.path.exists(cert_path):
+            logger.error("Certificate defined in 'certificate_path' setting does not exist")
 
         # TODO make it session local
         server_capabilities.set(CAPABILITIES.CLIENT_SSL, config["api"]["mysql"]["ssl"])

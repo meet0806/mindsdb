@@ -343,7 +343,7 @@ class ChatBots(Base):
     agent_id = Column(ForeignKey("agents.id", name="fk_agent_id"))
 
     # To be removed when existing chatbots are backfilled with newly created Agents.
-    model_name = Column(String, nullable=False)
+    model_name = Column(String)
     database_id = Column(Integer)
     params = Column(JSON)
 
@@ -351,6 +351,7 @@ class ChatBots(Base):
         DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
     )
     created_at = Column(DateTime, default=datetime.datetime.now)
+    webhook_token = Column(String)
 
     def as_dict(self) -> Dict:
         return {
@@ -360,6 +361,7 @@ class ChatBots(Base):
             "agent_id": self.agent_id,
             "model_name": self.model_name,
             "params": self.params,
+            "webhook_token": self.webhook_token,
             "created_at": self.created_at,
             "database_id": self.database_id,
         }
@@ -438,6 +440,12 @@ class Skills(Base):
     type = Column(String, nullable=False)
     params = Column(JSON)
 
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(
+        DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
+    )
+    deleted_at = Column(DateTime)
+
     def as_dict(self) -> Dict:
         return {
             "id": self.id,
@@ -446,6 +454,7 @@ class Skills(Base):
             "agent_ids": [a.id for a in self.agents],
             "type": self.type,
             "params": self.params,
+            "created_at": self.created_at,
         }
 
 
@@ -461,13 +470,15 @@ class Agents(Base):
     name = Column(String, nullable=False)
     project_id = Column(Integer, nullable=False)
 
-    model_name = Column(String, nullable=False)
+    model_name = Column(String, nullable=True)
+    provider = Column(String, nullable=True)
     params = Column(JSON)
 
     updated_at = Column(
         DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
     )
     created_at = Column(DateTime, default=datetime.datetime.now)
+    deleted_at = Column(DateTime)
 
     def as_dict(self) -> Dict:
         return {
@@ -476,6 +487,7 @@ class Agents(Base):
             "project_id": self.project_id,
             "model_name": self.model_name,
             "skills": [s.as_dict() for s in self.skills],
+            "provider": self.provider,
             "params": self.params,
             "updated_at": self.updated_at,
             "created_at": self.created_at,
@@ -521,6 +533,19 @@ class KnowledgeBase(Base):
         ),
     )
 
+    def as_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "project_id": self.project_id,
+            "embedding_model": None if self.embedding_model is None else self.embedding_model.name,
+            "vector_database": None if self.vector_database is None else self.vector_database.name,
+            "vector_database_table": self.vector_database_table,
+            "updated_at": self.updated_at,
+            "created_at": self.created_at,
+            "params": self.params
+        }
+
 
 class QueryContext(Base):
     __tablename__ = "query_context"
@@ -551,3 +576,17 @@ class LLMLog(Base):
     completion_tokens: int = Column(Integer, nullable=True)
     total_tokens: int = Column(Integer, nullable=True)
     success: bool = Column(Boolean, nullable=False, default=True)
+
+
+class LLMData(Base):
+    '''
+    Stores the question/answer pairs of an LLM call so examples can be used
+    for self improvement with DSPy
+    '''
+    __tablename__ = "llm_data"
+    id: int = Column(Integer, primary_key=True)
+    input: str = Column(String, nullable=False)
+    output: str = Column(String, nullable=False)
+    model_id: int = Column(Integer, nullable=False)
+    created_at: datetime = Column(DateTime, default=datetime.datetime.now)
+    updated_at: datetime = Column(DateTime, onupdate=datetime.datetime.now)

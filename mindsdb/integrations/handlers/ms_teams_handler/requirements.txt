@@ -1,0 +1,2 @@
+botframework-connector
+botbuilder-schema

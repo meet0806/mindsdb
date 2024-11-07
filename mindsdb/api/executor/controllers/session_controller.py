@@ -13,8 +13,9 @@ from mindsdb.utilities.config import Config
 from mindsdb.interfaces.agents.agents_controller import AgentsController
 from mindsdb.interfaces.model.model_controller import ModelController
 from mindsdb.interfaces.database.database import DatabaseController
-from mindsdb.interfaces.database.integrations import integration_controller
 from mindsdb.interfaces.skills.skills_controller import SkillsController
+from mindsdb.interfaces.functions.controller import FunctionController
+
 from mindsdb.utilities import log
 
 logger = log.getLogger(__name__)
@@ -38,21 +39,26 @@ class SessionController:
         self.config = Config()
 
         self.model_controller = ModelController()
+
+        # to prevent circular imports
+        from mindsdb.interfaces.database.integrations import integration_controller
         self.integration_controller = integration_controller
+
         self.database_controller = DatabaseController()
         self.skills_controller = SkillsController()
+        self.function_controller = FunctionController(self)
 
         # to prevent circular imports
         from mindsdb.interfaces.knowledge_base.controller import KnowledgeBaseController
         self.kb_controller = KnowledgeBaseController(self)
 
         self.datahub = init_datahub(self)
-        self.agents_controller = AgentsController(self.datahub)
+        self.agents_controller = AgentsController()
 
         self.prepared_stmts = {}
         self.packet_sequence_number = 0
         self.profiling = False
-        self.predictor_cache = True
+        self.predictor_cache = False if self.config.get('cache')['type'] == 'none' else True
         self.show_secrets = False
 
     def inc_packet_sequence_number(self):

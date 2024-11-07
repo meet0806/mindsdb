@@ -111,17 +111,31 @@ class Config():
             ml_queue['username'] = os.environ.get('MINDSDB_ML_QUEUE_USERNAME')
             ml_queue['password'] = os.environ.get('MINDSDB_ML_QUEUE_PASSWORD')
 
+        # If only one of the username or password is set, raise an error.
+        http_username = os.environ.get('MINDSDB_USERNAME')
+        http_password = os.environ.get('MINDSDB_PASSWORD')
+
+        if bool(http_username) != bool(http_password):
+            raise ValueError('Both MINDSDB_USERNAME and MINDSDB_PASSWORD must be set together and must be non-empty strings.')
+
+        # If both username and password are set, enable HTTP auth.
+        if http_username and http_password:
+            if 'auth' not in self._override_config:
+                self._override_config['auth'] = {}
+
+            self._override_config['auth']['http_auth_enabled'] = True
+            self._override_config['auth']['username'] = http_username
+            self._override_config['auth']['password'] = http_password
+
         api_host = "127.0.0.1" if not self.use_docker_env else "0.0.0.0"
         self._default_config = {
             'permanent_storage': {
-                'location': 'local'
+                'location': 'absent'
             },
             'storage_dir': os.environ['MINDSDB_STORAGE_DIR'],
             'paths': paths,
             'auth': {
                 'http_auth_enabled': False,
-                'username': 'mindsdb',
-                'password': ''
             },
             "log": {
                 "level": {
@@ -162,7 +176,9 @@ class Config():
             "cache": {
                 "type": "local"
             },
-            'ml_task_queue': ml_queue
+            'ml_task_queue': ml_queue,
+            "file_upload_domains": [],
+            "web_crawling_allowed_sites": [],
         }
 
         return _merge_configs(self._default_config, self._override_config)

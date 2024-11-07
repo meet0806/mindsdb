@@ -1,17 +1,16 @@
-from pandas import DataFrame, concat
-from snowflake import connector
+from pandas import DataFrame
 from snowflake.sqlalchemy import snowdialect
+from snowflake import connector
 
-from mindsdb_sql.render.sqlalchemy_render import SqlalchemyRender
+from mindsdb.utilities import log
 from mindsdb_sql.parser.ast.base import ASTNode
-
 from mindsdb.integrations.libs.base import DatabaseHandler
+from mindsdb_sql.render.sqlalchemy_render import SqlalchemyRender
 from mindsdb.integrations.libs.response import (
     HandlerStatusResponse as StatusResponse,
     HandlerResponse as Response,
     RESPONSE_TYPE
 )
-from mindsdb.utilities import log
 
 
 logger = log.getLogger(__name__)
@@ -176,23 +175,13 @@ class SnowflakeHandler(DatabaseHandler):
             Response: A response object containing the list of tables and views, formatted as per the `Response` class.
         """
 
-        query = "SHOW TABLES;"
-        result_tables = self.native_query(query)
-        if result_tables.resp_type == RESPONSE_TYPE.TABLE:
-            result_tables.data_frame = result_tables.data_frame.rename(columns={'name': 'table_name'})[['table_name']]
-        elif result_tables.resp_type == RESPONSE_TYPE.OK:
-            result_tables.data_frame = DataFrame(columns=['table_name'])
-
-        query = "SHOW VIEWS;"
-        result_views = self.native_query(query)
-        if result_views.resp_type == RESPONSE_TYPE.TABLE:
-            result_views.data_frame = result_views.data_frame.rename(columns={'name': 'table_name'})[['table_name']]
-        elif result_views.resp_type == RESPONSE_TYPE.OK:
-            result_views.data_frame = DataFrame(columns=['table_name'])
-
-        result = Response(RESPONSE_TYPE.TABLE)
-        result.data_frame = concat([result_tables.data_frame, result_views.data_frame], ignore_index=True)
-        return result
+        query = """
+            SELECT TABLE_NAME, TABLE_SCHEMA, TABLE_TYPE
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW')
+              AND TABLE_SCHEMA = current_schema()
+        """
+        return self.native_query(query)
 
     def get_columns(self, table_name) -> Response:
         """
@@ -213,7 +202,8 @@ class SnowflakeHandler(DatabaseHandler):
         query = f"""
             SELECT COLUMN_NAME AS FIELD, DATA_TYPE AS TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = '{table_name}';
+            WHERE TABLE_NAME = '{table_name}'
+              AND TABLE_SCHEMA = current_schema()
         """
         result = self.native_query(query)
         result.data_frame = result.data_frame.rename(columns={'FIELD': 'Field', 'TYPE': 'Type'})

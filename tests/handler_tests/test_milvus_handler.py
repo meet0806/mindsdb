@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+import time
 from mindsdb_sql import parse_sql
 
 from ..unit.executor_test_base import BaseExecutorTest
@@ -21,10 +22,7 @@ class TestMilvusHandler(BaseExecutorTest):
         ret = self.command_executor.execute_command(parse_sql(sql, dialect="mindsdb"))
         assert ret.error_code is None
         if ret.data is not None:
-            columns = [
-                col.alias if col.alias is not None else col.name for col in ret.columns
-            ]
-            return pd.DataFrame(ret.data, columns=columns)
+            return ret.data.to_df()
 
     def setup_method(self):
         super().setup_method()
@@ -34,11 +32,7 @@ class TestMilvusHandler(BaseExecutorTest):
             WITH
               ENGINE = 'milvus',
               PARAMETERS = {
-                "alias": "default",
-                "host": "127.0.0.1",
-                "port": 19530,
-                "user": "username",
-                "password": "password",
+                "uri": "./milvus.db",
                 "create_embedding_dim": 3
             };
         """)
@@ -47,11 +41,7 @@ class TestMilvusHandler(BaseExecutorTest):
             WITH
               ENGINE = 'milvus',
               PARAMETERS = {
-                "alias": "default",
-                "host": "127.0.0.1",
-                "port": 19530,
-                "user": "username",
-                "password": "password",
+                "uri": "./milvus.db",
                 "create_embedding_dim": 3,
                 "create_auto_id": true
             };
@@ -59,11 +49,7 @@ class TestMilvusHandler(BaseExecutorTest):
 
     def drop_table(self, table_name):
         pymilvus.connections.connect(
-            alias="default",
-            host="127.0.0.1",
-            port=19530,
-            user="username",
-            password="password",
+            uri="./milvus.db",
         )
         pymilvus.utility.drop_collection(table_name)
 
@@ -206,6 +192,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # check if the data is inserted
         sql = """
             SELECT * FROM milvus_test.testable
@@ -225,6 +212,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # check if the data is inserted
         sql = """
             SELECT * FROM milvus_test_auto_id.testableauto
@@ -239,6 +227,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # check if the data is inserted
         sql = """
             SELECT * FROM milvus_test.testableauto
@@ -271,6 +260,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # query a table without any filters
         sql = """
             SELECT * FROM milvus_test.testable
@@ -429,6 +419,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # delete by id
         sql = """
             DELETE FROM milvus_test.testable
@@ -436,6 +427,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # check if the data is deleted
         sql = """
             SELECT * FROM milvus_test.testable
@@ -450,6 +442,7 @@ class TestMilvusHandler(BaseExecutorTest):
         """
         self.run_sql(sql)
 
+        time.sleep(1)  # wait for milvus to load the data asynchronously
         # check if the data is deleted
         sql = """
             SELECT * FROM milvus_test.testable
