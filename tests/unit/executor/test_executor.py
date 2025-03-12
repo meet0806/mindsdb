@@ -219,14 +219,17 @@ class Test(BaseExecutorMockPredictor):
         # one key with max value of a
         assert len(data) == 2
         #  first row
-        assert data[0]['a'] == 3
-        assert data[0]['t'] == dt.datetime(2020, 1, 3)
-        assert data[0]['g'] == 'x'
-
-        # second
-        assert data[1]['a'] == 13
-        assert data[1]['t'] == dt.datetime(2021, 1, 3)
-        assert data[1]['g'] == 'y'
+        groups = [
+            ['x', 3, dt.datetime(2020, 1, 3)],
+            ['y', 13, dt.datetime(2021, 1, 3)],
+        ]
+        if data[0]['g'] == 'y':
+            # other sort order after duckdb join
+            groups.reverse()
+        for i, (group, val, date) in enumerate(groups):
+            assert data[i]['a'] == val
+            assert data[i]['t'] == date
+            assert data[i]['g'] == group
 
         # > latest ______________________
         ret = self.execute("""
@@ -542,6 +545,20 @@ class Test(BaseExecutorMockPredictor):
             select p.* from files.tasks t
             join mindsdb.task_model p
             where t.t > latest
+        """)
+
+        ret_df = self.ret_to_df(ret)
+        assert ret_df.shape[0] == 3
+        assert ret_df.t.min() == 2024.
+
+        # > latest with CTE
+        ret = self.execute("""
+            WITH trainingdata AS (
+                select a.t, a.* from files.tasks a
+            )
+            select t.t as t0, p.* from trainingdata t
+            join mindsdb.task_model p
+            where t.t > latest and t.g = 'x'
         """)
 
         ret_df = self.ret_to_df(ret)
@@ -1030,7 +1047,7 @@ class TestWithNativeQuery(BaseExecutorMockPredictor):
         # input = one row whit a==2
         data_in = self.mock_predict.call_args[0][1]
         assert len(data_in) == 1
-        assert data_in.iloc[0]['a'] == 2
+        assert data_in._predict_df.iloc[0]['a'] == 2
 
         # check prediction
         assert ret.data.to_lists()[0][0] == predicted_value
@@ -1090,7 +1107,7 @@ class TestWithNativeQuery(BaseExecutorMockPredictor):
         assert mock_handler().native_query.call_args[0][0] == 'select * from tasks'
 
         # input to predictor all 9 rows
-        when_data = self.mock_predict.call_args[0][1]
+        when_data = self.mock_predict.call_args[0][1]._predict_df
         assert len(when_data) == 9
 
         # all group values in input

@@ -4,11 +4,15 @@ from mindsdb.interfaces.agents.agents_controller import AgentsController
 from mindsdb.interfaces.chatbot.chatbot_task import ChatBotTask
 from mindsdb.interfaces.database.projects import ProjectController
 from mindsdb.interfaces.storage import db
+from mindsdb.interfaces.model.functions import get_project_records
 
 from mindsdb.utilities.context import context as ctx
 
 from mindsdb.api.executor.controllers.session_controller import SessionController
-from mindsdb.utilities.config import Config
+from mindsdb.utilities.config import config
+
+
+default_project = config.get('default_project')
 
 
 class ChatBotController:
@@ -24,7 +28,7 @@ class ChatBotController:
         self.project_controller = project_controller
         self.agents_controller = agents_controller
 
-    def get_chatbot(self, chatbot_name: str, project_name: str = 'mindsdb') -> dict:
+    def get_chatbot(self, chatbot_name: str, project_name: str = default_project) -> dict:
         '''
         Gets a chatbot by name.
 
@@ -117,7 +121,7 @@ class ChatBotController:
 
         return bot_obj
 
-    def get_chatbots(self, project_name: str = 'mindsdb') -> List[dict]:
+    def get_chatbots(self, project_name: str = default_project) -> List[dict]:
         '''
         Gets all chatbots in a project.
 
@@ -128,16 +132,11 @@ class ChatBotController:
             all_bots (List[db.ChatBots]): List of database chatbot object
         '''
 
-        query = db.session.query(db.Project).filter_by(
-            company_id=ctx.company_id,
-            deleted_at=None
-        )
-        if project_name is not None:
-            query = query.filter_by(name=project_name)
-        project_names = {
-            i.id: i.name
-            for i in query
-        }
+        project_names = {}
+        for project in get_project_records():
+            if project_name is not None and project.name != project_name:
+                continue
+            project_names[project.id] = project.name
 
         query = db.session.query(
             db.ChatBots, db.Tasks
@@ -203,14 +202,12 @@ class ChatBotController:
             bot (db.ChatBots): The created chatbot
         '''
 
-        config = Config()
-
         is_cloud = config.get('cloud', False)
         if is_cloud and ctx.user_class == 0:
             raise Exception("You can't create chatbot")
 
         if project_name is None:
-            project_name = 'mindsdb'
+            project_name = default_project
         project = self.project_controller.get(name=project_name)
 
         bot = self.get_chatbot(name, project_name)
@@ -228,9 +225,9 @@ class ChatBotController:
             raise ValueError('Need to provide either "model_name" or "agent_name" when creating a chatbot')
         if agent_name is not None:
             agent = self.agents_controller.get_agent(agent_name, project_name)
-            model_name = agent.model_name
             if agent is None:
                 raise ValueError(f"Agent with name doesn't exist: {agent_name}")
+            model_name = agent.model_name
             agent_id = agent.id
         else:
             # Create a new agent with the given model name.
@@ -264,7 +261,7 @@ class ChatBotController:
     def update_chatbot(
             self,
             chatbot_name: str,
-            project_name: str = 'mindsdb',
+            project_name: str = default_project,
             name: str = None,
             model_name: str = None,
             agent_name: str = None,
@@ -342,7 +339,7 @@ class ChatBotController:
 
         return existing_chatbot_rec
 
-    def delete_chatbot(self, chatbot_name: str, project_name: str = 'mindsdb'):
+    def delete_chatbot(self, chatbot_name: str, project_name: str = default_project):
         '''
         Deletes a chatbot by name.
 

@@ -81,8 +81,9 @@ from mindsdb.api.executor import exceptions as exec_exc
 from mindsdb.api.common.check_auth import check_auth
 from mindsdb.api.mysql.mysql_proxy.utilities.lightwood_dtype import dtype
 from mindsdb.utilities import log
-from mindsdb.utilities.config import Config
+from mindsdb.utilities.config import config
 from mindsdb.utilities.context import context as ctx
+from mindsdb.utilities.otel.metric_handlers import get_query_request_counter
 from mindsdb.utilities.wizards import make_ssl_cert
 
 logger = log.getLogger(__name__)
@@ -343,7 +344,7 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
             data = []
         packets = []
         for i, column in enumerate(columns):
-            logger.info(
+            logger.debug(
                 "%s._get_column_defenition_packets: handling column - %s of %s type",
                 self.__class__.__name__,
                 column,
@@ -447,7 +448,6 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
         connection. '0000' selected because in real mysql connection it should be lenght of package,
         and it can not be 0.
         """
-        config = Config()
         is_cloud = config.get("cloud", False)
 
         if sys.platform != "linux" or is_cloud is False:
@@ -562,6 +562,12 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
                 data=executor.data,
                 status=executor.server_status,
             )
+
+        # Increment the counter and include metadata in attributes
+        metadata = ctx.metadata(query=sql)
+        query_request_counter = get_query_request_counter()
+        query_request_counter.add(1, metadata)
+
         return resp
 
     def answer_stmt_prepare(self, sql):
@@ -737,9 +743,9 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
                 if p.type.value == COMMANDS.COM_QUERY:
                     sql = self.decode_utf(p.sql.value)
                     sql = SqlStatementParser.clear_sql(sql)
-                    logger.debug(f"COM_QUERY: {sql}")
+                    logger.debug(f'Incoming query: {sql}')
                     profiler.set_meta(
-                        query=sql, api="mysql", environment=Config().get("environment")
+                        query=sql, api="mysql", environment=config.get("environment")
                     )
                     with profiler.Context("mysql_query_processing"):
                         response = self.process_query(sql)
@@ -870,6 +876,9 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
     def set_context(self, context):
         if "db" in context:
             self.session.database = context["db"]
+        else:
+            self.session.database = config.get('default_project')
+
         if "profiling" in context:
             self.session.profiling = context["profiling"]
         if "predictor_cache" in context:
@@ -896,7 +905,6 @@ class MysqlProxy(SocketServer.BaseRequestHandler):
         Create a server and wait for incoming connections until Ctrl-C
         """
         global logger
-        config = Config()
 
         cert_path = config["api"]["mysql"].get("certificate_path")
         if cert_path is None or cert_path == "":

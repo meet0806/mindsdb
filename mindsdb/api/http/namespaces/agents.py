@@ -293,13 +293,6 @@ def _completion_event_generator(
     def json_serialize(data):
         return f'data: {json.dumps(data)}\n\n'
 
-    quick_response_message = {
-        'role': 'assistant',
-        'content': AGENT_QUICK_RESPONSE
-    }
-    yield json_serialize({"quick_response": True, "messages": [quick_response_message]})
-    logger.info("Quick response sent")
-
     try:
         # Populate API key by default if not present.
         session = SessionController()
@@ -475,11 +468,13 @@ class AgentCompletions(Resource):
 
         output_col = agents_controller.assistant_column
         model_output = completion.iloc[-1][output_col]
+        trace_id = completion.iloc[-1]['trace_id']
 
         response = {
             'message': {
                 'content': model_output,
-                'role': 'assistant'
+                'role': 'assistant',
+                'trace_id': trace_id
             }
         }
 
